@@ -1,0 +1,36 @@
+{
+SSD1331_Example.spin2 Ver 1.0
+Copyright (C) 2024 Terry E.Trapp, KE4PJW (ttrapp@ieee.org)
+This software is based on the work of B.J. Guillot (bguillot@acm.org)
+See p2qr.spin2 for more details.
+}
+CON
+
+
+
+
+
+
+
+  _xtlfreq = 20_000_000
+  _clkfreq = 160_000_000
+  WHITE = $FFFF
+  BLACK = $0000
+VAR
+  long rawptr
+
+OBJ
+  qrssd    :     "qrssd"       'Object to display the QR code on an SSD1331.
+     qr    :     "p2qr"        'Object that creates the QR code.
+
+PUB  main()
+    qrssd.setup()  ' Setup the display
+    rawptr := qr.getimage()  ' Get the image pointer
+
+    qr.parseMessage(String("https://www.parallax.com/propeller-2/"),qr.TYPE_RAW,0)
+'    qr.parseMessage(String("Thereiss a frood who really knows where his towel is!  And ahoy the quick brown fox jumped over the rusty stinky rotten no good for nothing car."),qr.TYPE_RAW,0)
+
+    qrssd.setversion(qr.getqrversion()) ' Get the version of the qrcode used to create the message. This is needed to deterine if the QR code should be 4 dots per pixel or 1.
+'repeat
+    qrssd.displayqr(rawptr,WHITE,BLACK) 'Display the image.
+    repeat

@@ -1,0 +1,73 @@
+{
+SSD1331_Example.spin2 Ver 1.0
+Copyright (C) 2024 Terry E.Trapp, KE4PJW (ttrapp@ieee.org)
+This software is based on the work of B.J. Guillot (bguillot@acm.org)
+See p2qr.spin2 for more details.
+}
+CON
+  CS    = 50
+  RST   = 52
+  DC    = 51
+  CLK   = 49
+  DATA  = 48
+
+
+VAR
+  LONG qrversion
+
+OBJ
+  OLED    :     "oled_AsmDrv"       ''OLED dedicated SPI engine in Assembly
+
+
+PUB setup()
+    OLED.Init(CS,DC,DATA,CLK,RST)
+    OLED.AutoUpdateOff()
+    OLED.clearDisplay()
+
+PUB displayqr(raw,fgc,bgc)|di, maxpix, c, r, pixsize
+    c := 0
+    r := 0
+    maxpix := (qrversion*4)+21
+    if maxpix <= 33
+       pixsize := 2
+    else
+       pixsize := 1
+    repeat maxpix * maxpix
+      writeQR(BYTE[raw][di++],c,r,fgc,bgc,pixsize)
+      c := c + pixsize
+      if c + pixsize > maxpix * pixsize
+        c := 0
+        r := r + pixsize
+
+      debug(udec(c),udec(r))
+       if r > 64
+        return
+PUB setversion(ver)
+    qrversion := ver
+PUB writeQR(ch,row,col,RGB,BRGB,pixsize)|i,j,mask,r
+
+  ''Write a write to the display @ row and column
+    OLED.ssd1331_command(OLED.SSD1331_CMD_SETREMAP)       ' $A0
+    OLED.ssd1331_command($61)                       ' RGB Color
+    OLED.ssd1331_command(OLED.SSD1331_CMD_SETCOLUMN)  ' Set X
+    OLED.ssd1331_command(row)
+    OLED.ssd1331_command(row + pixsize)
+    OLED.ssd1331_command(OLED.SSD1331_CMD_SETROW)  ' Set Y
+    OLED.ssd1331_command(col)
+    OLED.ssd1331_command(col + pixsize)
+
+    repeat pixsize * pixsize
+        debug(udec(ch))
+        if ch == 255
+           OLED.ssd1331_Data(OLED.RG16bitColor(RGB)) ' Set foreground color
+           OLED.ssd1331_Data(OLED.GB16bitColor(RGB))
+        else
+           OLED.ssd1331_Data(OLED.RG16bitColor(BRGB))' Set background color
+           OLED.ssd1331_Data(OLED.GB16bitColor(BRGB))
+
+
+PRI private_method_name()
+
+
+DAT
+name    byte  "string_data",0

@@ -1,0 +1,101 @@
+{
+p2qr_MaskTest.spin2
+Integration test for p2qr all-8-mask selection.
+
+Sends a variety of messages through parseMessage() and tracks which of the
+8 masks (0-7) gets selected for each.  At the end it reports coverage.
+
+Expected result: all 8 masks appear at least once across the test suite.
+If any mask is missing, add more messages and re-run.
+
+Run with Propeller Tool debug window open.
+}
+
+CON
+  _xtlfreq = 20_000_000
+  _clkfreq = 270_000_000
+
+VAR
+  long mask_seen     '// bit N is set the first time mask N is selected
+  long total_tests
+
+OBJ
+  qr     : "p2qr"
+  serial : "SmartSerial"
+
+PUB main() | i, m
+
+  serial.start(230400)
+  SEND := @serial.tx
+
+  mask_seen   := 0
+  total_tests := 0
+
+  '// ── Short messages (likely V1-V3) ────────────────────────────────────
+  run_test(String("HELLO"))
+  run_test(String("Hello!"))
+  run_test(String("12345"))
+  run_test(String("AAAAAAAAAAA"))
+  run_test(String("abcdefghijk"))
+  run_test(String("Hello, World!"))
+  run_test(String("00000000000"))
+  run_test(String("xxxxxxxxxxx"))
+
+  '// ── Medium messages (V3-V8) ──────────────────────────────────────────
+  run_test(String("https://www.parallax.com/propeller-2/"))
+  run_test(String("The quick brown fox jumps over the lazy dog"))
+  run_test(String("12345678901234567890123456789012345"))
+  run_test(String("AAABBBCCCDDDEEEFFFGGGHHH"))
+  run_test(String("abcdefghijklmnopqrstuvwxyz0123456789"))
+  run_test(String("QR Code Test Message Number One - pass"))
+  run_test(String("QR Code Test Message Number Two - pass"))
+  run_test(String("0101010101010101010101010101010101010"))
+  run_test(String("The Propeller 2 is a multicore MCU."))
+  run_test(String("https://github.com/parallaxinc/propeller"))
+
+  '// ── Longer messages (V8-V15) ─────────────────────────────────────────
+  run_test(String("Pack my box with five dozen liquor jugs."))
+  run_test(String("How vexingly quick daft zebras jump!"))
+  run_test(String("sphinx of black quartz, judge my vow"))
+  run_test(String("The five boxing wizards jump quickly over the lazy fox."))
+  run_test(String("Propeller 2: 8 cogs, 512KB HUB RAM, 270 MHz clock speed"))
+  run_test(String("To be, or not to be, that is the question."))
+  run_test(String("It was the best of times, it was the worst of times."))
+  run_test(String("Claude Code integration test for p2qr mask selection - run 1"))
+  run_test(String("Claude Code integration test for p2qr mask selection - run 2"))
+  run_test(String("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
+  run_test(String("                                                        "))
+  run_test(String("!@#$%^&*()_+-=[]{}|;':<>?,./`~0123456789abcdefghijklmno"))
+
+  '// ── Varied content for remaining mask coverage ───────────────────────
+  run_test(String("The answer to life, the universe, and everything is 42."))
+  run_test(String("Mary had a little lamb, its fleece was white as snow."))
+  run_test(String("Four score and seven years ago our fathers brought forth"))
+  run_test(String("We hold these truths to be self-evident."))
+  run_test(String("In the beginning God created the heavens and the earth."))
+  run_test(String("All that glitters is not gold; often have you heard that"))
+  run_test(String("Propeller Tool version 2 supports Spin2 and PASM2 code."))
+  run_test(String("Error correction level Q: 25%% of codewords can be lost."))
+
+  '// ── Report ────────────────────────────────────────────────────────────
+  DEBUG("==========================================================")
+  DEBUG("MASK COVERAGE REPORT  (", udec_(total_tests), " messages tested)")
+  DEBUG("==========================================================")
+  repeat i from 0 to 7
+    if (mask_seen >> i) & 1
+      DEBUG("  Mask ", udec_(i), " : SEEN")
+    else
+      DEBUG("  Mask ", udec_(i), " : *** MISSING ***")
+  DEBUG("----------------------------------------------------------")
+  if mask_seen == $FF
+    DEBUG("RESULT: PASS -- all 8 masks selected at least once.")
+  else
+    DEBUG("RESULT: FAIL -- add more test messages for missing masks.")
+  DEBUG("==========================================================")
+
+PRI run_test(msg) | m
+  qr.parseMessage(msg, qr.TYPE_RAW, 0)
+  m := qr.getmask()
+  mask_seen |= (1 << m)
+  total_tests++
+  DEBUG("  v", udec_(qr.getqrversion() + 1), " mask=", udec_(m), "  ", zstr_(msg))

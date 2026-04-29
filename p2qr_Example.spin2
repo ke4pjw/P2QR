@@ -1,0 +1,38 @@
+{
+p2qr_Example.spin2 Ver 1.1
+Copyright (C) 2024 Terry E.Trapp, KE4PJW (ttrapp@ieee.org)
+This software is based on the work of B.J. Guillot (bguillot@acm.org)
+See p2qr.spin2 for more details.
+}
+
+CON
+    _xtlfreq = 20_000_000
+    _clkfreq = 270_000_000
+
+VAR
+  long  symbol
+
+OBJ
+  qr      : "p2qr"
+  serial  : "SmartSerial"
+
+PUB main()|t
+     serial.start(230400) ' Speeds above 230400 can cause issues with Putty. Not sure why. Probably a putty issue.
+
+     SEND := @serial.tx ' Set the SEND object to point to the Smart Serial tx method. This will be used for methods other than debug.
+
+     ' Assign Custom Characters for use with qr.TYPE_CUSTCHR
+     qr.white(String("XX")) ' Custom Character White
+     qr.black(String("  ")) ' Custom Character Back
+     qr.newln(String(13,10))' Custom Character New Line
+
+     qr.parseMessage(String("https://www.parallax.com/propeller-2/"),qr.TYPE_DEBUG,8)  ' Debug Must be enabled to display TYPE_DEBUG. The last parameter is debug pixel size.
+'     qr.parseMessage(String("https://www.parallax.com/propeller-2/"),qr.TYPE_CUSTCHR,0) 'You will need to disable newline or cr in Parallax Serial Terminal.
+'     qr.parseMessage(String("https://www.parallax.com/propeller-2/"),qr.TYPE_ASCII,0) 'You will need to disable newline or cr in Parallax Serial Terminal.
+'     qr.parseMessage(String("https://www.parallax.com/propeller-2/"),qr.TYPE_ANSI,0) 'Uses ANSI Escape Sequences. Works with Putty. Does not work in Parallax Serial Terminal.
+'     qr.parseMessage(String("https://www.parallax.com/propeller-2/"),qr.TYPE_UNICODE,8)
+'     qr.parseMessage(String("Thereiss a frood who really knows where his towel is!  And ahoy the quick brown fox jumped over the rusty stinky rotten no good for nothing car."),QR.TYPE_UNICODE,8)
+'     qr.parseMessage(String("Thereiss a frood who really knows where his towel is!  And ahoy the quick brown fox jumped over the rusty stinky rotten no good for nothing car."),QR.TYPE_DEBUG,8)
+'     qr.parseMessage(@v40a,qr.TYPE_DEBUG,3) ' V40 Latgest QR Code that can be created.
+DAT
+v40a byte "When in the Course of human events, it becomes necessary for one people to dissolve the political bands which have connected them with another, and to assume among the powers of the earth, the separate and equal station to which the Laws of Nature and of Nature's God entitle them, a decent respect to the opinions of mankind requires that they should declare the causes which impel them to the separation.\n\nWe hold these truths to be self-evident, that all men are created equal, that they are endowed by their Creator with certain unalienable Rights, that among these are Life, Liberty and the pursuit of Happiness.\n\nThat to secure these rights, Governments are instituted among Men, deriving their just powers from the consent of the governed, --That whenever any Form of Government becomes destructive of these ends, it is the Right of the People to alter or to abolish it, and to institute new Government, laying its foundation on such principles and organizing its powers in such form, as to them shall seem most likely to effect their Safety and Happiness.\n\nPrudence, indeed, will dictate that Governments long established should not be changed for light and transient causes; and accordingly all experience hath shewn, that mankind are more disposed to suffer, while evils are sufferable, than to right themselves by abolishing the forms to which they are accustomed.\n\nBut when a long train of abuses and usurpations, pursuing invariably the same Object evinces a design to reduce them under absolute Despotism, it is their right, it is their duty, to throw off such Government, and to provide new Guards for their future security."
