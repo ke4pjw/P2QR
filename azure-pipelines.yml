@@ -42,7 +42,7 @@ steps:
       git fetch origin '+refs/heads/*:refs/remotes/origin/*'
 
       # ---- push all branches and tags to GitHub ----
-      git push github --all   --force
+      git push github 'refs/remotes/origin/*:refs/heads/*' --force
       git push github --tags  --force
 
       echo "✅ Successfully mirrored to GitHub."
