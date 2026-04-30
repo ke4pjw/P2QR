@@ -21,7 +21,7 @@ pool:
 
 variables:
   # Set this to your GitHub repo path: github.com/<owner>/<repo>.git
-  GITHUB_REPO: 'github.com/ke4pjw/P2QR'
+  GITHUB_REPO: 'github.com/ke4pjw/P2QR.git'
 
 steps:
   # Azure DevOps does a shallow fetch by default — override that so the
@@ -32,8 +32,8 @@ steps:
 
   - script: |
       # ---- configure git identity (required for some push scenarios) ----
-      git config user.email "azuredevops-pipeline@noreply.dev"
-      git config user.name  "Azure DevOps Pipeline"
+      git config user.email "ttrapp@ieee.org"
+      git config user.name  "ke4pjw"
 
       # ---- add GitHub as a remote using the PAT for authentication ----
       git remote add github "https://$(GITHUB_PAT)@$(GITHUB_REPO)"
