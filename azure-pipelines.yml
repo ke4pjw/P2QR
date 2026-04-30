@@ -31,9 +31,7 @@ steps:
     persistCredentials: true
 
   - script: |
-      # ---- configure git identity (required for some push scenarios) ----
-      git config user.email "ttrapp@ieee.org"
-      git config user.name  "ke4pjw"
+
 
       # ---- add GitHub as a remote using the PAT for authentication ----
       git remote add github "https://$(GITHUB_PAT)@$(GITHUB_REPO)"
