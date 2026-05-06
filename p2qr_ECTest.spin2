@@ -1,0 +1,321 @@
+{
+p2qr_ECTest.spin2
+Integration test for p2qr EC (Error Correction) level configurability.
+
+Tests three properties for whichever EC_LEVEL is compiled into p2qr.spin2:
+
+  1. FORMAT INFO  — reads the 15-bit format information strip back from every
+                    generated QR image and verifies it matches the expected value
+                    for the current EC_LEVEL and selected mask.  A mismatch means
+                    either the wrong mask_info table is being selected or the bits
+                    are being written to the wrong image positions.
+
+  2. VERSION CAPACITY — checks that version selection agrees with the spec
+                    capacity tables for the current EC_LEVEL.  Three carefully-
+                    chosen message lengths produce different versions across levels,
+                    so the expected version is looked up at compile time via the
+                    EC_LEVEL constant.
+
+  3. MASK COVERAGE — verifies that all 8 mask patterns are chosen at least once
+                    across the full test suite (regression check from MaskTest).
+
+HOW TO TEST ALL FOUR LEVELS:
+  1. Open p2qr.spin2 and change EC_LEVEL to EC_L, EC_M, EC_Q, or EC_H.
+  2. Recompile and run this file.
+  3. All three sections must report PASS.
+  4. Scan a generated QR code with a phone to confirm it decodes correctly.
+  5. Repeat for each EC level.
+
+}
+
+CON
+  _xtlfreq = 20_000_000
+  _clkfreq = 270_000_000
+
+VAR
+  long pass_count
+  long fail_count
+  long mask_seen
+  long total_tests
+
+OBJ
+  qr     : "p2qr"
+  serial : "SmartSerial"
+
+' ───────────────────────────────────────────────────────────────────────────
+PUB main()
+
+  serial.start(230400)
+  SEND := @serial.tx
+
+  pass_count  := 0
+  fail_count  := 0
+  mask_seen   := 0
+  total_tests := 0
+
+  print_ec_level_banner()
+
+  DEBUG("==========================================================")
+  DEBUG("SECTION 1: FORMAT INFO VERIFICATION")
+  DEBUG("  Each QR code''s format bits are read back from the image")
+  DEBUG("  and compared against the expected value for EC_LEVEL.")
+  DEBUG("==========================================================")
+
+  ' Short messages
+  run_fi_test(String("HELLO"))
+  run_fi_test(String("Hello!"))
+  run_fi_test(String("12345"))
+  run_fi_test(String("AAAAAAAAAAA"))
+  run_fi_test(String("abcdefghijk"))
+  run_fi_test(String("Hello, World!"))
+  run_fi_test(String("00000000000"))
+  run_fi_test(String("xxxxxxxxxxx"))
+
+  ' Medium messages
+  run_fi_test(String("https://www.parallax.com/propeller-2/"))
+  run_fi_test(String("The quick brown fox jumps over the lazy dog"))
+  run_fi_test(String("12345678901234567890123456789012345"))
+  run_fi_test(String("AAABBBCCCDDDEEEFFFGGGHHH"))
+  run_fi_test(String("abcdefghijklmnopqrstuvwxyz0123456789"))
+  run_fi_test(String("QR Code Test Message Number One - pass"))
+  run_fi_test(String("QR Code Test Message Number Two - pass"))
+  run_fi_test(String("0101010101010101010101010101010101010"))
+  run_fi_test(String("The Propeller 2 is a multicore MCU."))
+  run_fi_test(String("https://github.com/parallaxinc/propeller"))
+
+  ' Longer messages
+  run_fi_test(String("Pack my box with five dozen liquor jugs."))
+  run_fi_test(String("How vexingly quick daft zebras jump!"))
+  run_fi_test(String("sphinx of black quartz, judge my vow"))
+  run_fi_test(String("The five boxing wizards jump quickly over the lazy fox."))
+  run_fi_test(String("Propeller 2: 8 cogs, 512KB HUB RAM, 270 MHz clock speed"))
+  run_fi_test(String("To be, or not to be, that is the question."))
+  run_fi_test(String("It was the best of times, it was the worst of times."))
+  run_fi_test(String("Claude Code integration test for p2qr EC level - run 1"))
+  run_fi_test(String("Claude Code integration test for p2qr EC level - run 2"))
+  run_fi_test(String("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))
+  run_fi_test(String("                                                        "))
+  run_fi_test(String("!@#$%^&*()_+-=[]{}|;':<>?,./`~0123456789abcdefghijklmno"))
+
+  ' Additional messages for mask coverage
+  run_fi_test(String("The answer to life, the universe, and everything is 42."))
+  run_fi_test(String("Mary had a little lamb, its fleece was white as snow."))
+  run_fi_test(String("Four score and seven years ago our fathers brought forth"))
+  run_fi_test(String("We hold these truths to be self-evident."))
+  run_fi_test(String("In the beginning God created the heavens and the earth."))
+  run_fi_test(String("All that glitters is not gold; often have you heard that"))
+  run_fi_test(String("Propeller Tool version 2 supports Spin2 and PASM2 code."))
+  run_fi_test(String("Error correction level configurability test, all levels."))
+
+  DEBUG("----------------------------------------------------------")
+  DEBUG("FORMAT INFO TESTS: ", udec_(pass_count + fail_count),{
+}       " run,  PASS: ", udec_(pass_count), "  FAIL: ", udec_(fail_count))
+  if fail_count == 0
+    DEBUG("SECTION 1 RESULT: PASS")
+  else
+    DEBUG("SECTION 1 RESULT: FAIL")
+
+  DEBUG(" ")
+  DEBUG("==========================================================")
+  DEBUG("SECTION 2: VERSION CAPACITY CHECK")
+  DEBUG("  Verifies version selection matches the EC_LEVEL spec tables.")
+  DEBUG("==========================================================")
+
+  run_version_tests()
+
+  DEBUG(" ")
+  DEBUG("==========================================================")
+  DEBUG("SECTION 3: MASK COVERAGE")
+  DEBUG("  Verifies all 8 masks appear across the test suite.")
+  DEBUG("==========================================================")
+  report_mask_coverage()
+
+  DEBUG(" ")
+  DEBUG("==========================================================")
+  if fail_count == 0
+    DEBUG("OVERALL RESULT: PASS -- EC Level integration tests succeeded.")
+  else
+    DEBUG("OVERALL RESULT: FAIL -- ", udec_(fail_count), " check(s) failed.")
+  DEBUG("==========================================================")
+
+' ───────────────────────────────────────────────────────────────────────────
+' SECTION 1: Format info verification helpers
+' ───────────────────────────────────────────────────────────────────────────
+
+PRI run_fi_test(msg) | m, img, sz, fi_actual, fi_expected
+
+  qr.parseMessage(msg, qr.TYPE_RAW, 0)
+  m           := qr.getmask()
+  img         := qr.getimage()
+  sz          := (qr.getqrversion() + 1) * 4 + 17   ' max_pixels for this version
+  fi_actual   := read_format_info(img, sz)
+  fi_expected := qr.getformatinfo(m)
+
+  mask_seen |= (1 << m)
+  total_tests++
+
+  if fi_actual == fi_expected
+    pass_count++
+    DEBUG("PASS v", udec_(qr.getqrversion() + 1),{
+}         " mask=", udec_(m),{
+}         " fi=", udec_(fi_actual), "  ", zstr_(msg))
+  else
+    fail_count++
+    DEBUG("FAIL v", udec_(qr.getqrversion() + 1),{
+}         " mask=", udec_(m),{
+}         " actual=",   udec_(fi_actual),{
+}         " expected=", udec_(fi_expected),{
+}         "  ", zstr_(msg))
+
+PRI read_format_info(img, sz) : fi | bit
+
+'' Read the 15 format info bits from Copy 1 of the format strip (top-left
+'' finder area).  Dark module (0) = bit value 1.  The bit layout mirrors
+'' what write_format_info() places in the image:
+''
+''   Bit  0 → Row 0, Col 8
+''   Bits 1-5 → Rows 1-5, Col 8
+''   Bit  6 → Row 7, Col 8   (Row 6 is timing pattern, skipped)
+''   Bit  7 → Row 8, Col 8
+''   Bit  8 → Row 8, Col 7
+''   Bit  9 → Row 8, Col 5   (Col 6 is timing pattern, skipped)
+''   Bits 10-14 → Row 8, Cols 4, 3, 2, 1, 0
+
+  fi := 0
+
+  ' Bits 0-5: rows 0-5, col 8
+  repeat bit from 0 to 5
+    if qr.img_get(img, sz, bit, 8) == 0
+      fi |= (1 << bit)
+
+  ' Bit 6: row 7, col 8 (row 6 is timing, skip it)
+  if qr.img_get(img, sz, 7, 8) == 0
+    fi |= (1 << 6)
+
+  ' Bit 7: row 8, col 8
+  if qr.img_get(img, sz, 8, 8) == 0
+    fi |= (1 << 7)
+
+  ' Bit 8: row 8, col 7
+  if qr.img_get(img, sz, 8, 7) == 0
+    fi |= (1 << 8)
+
+  ' Bit 9: row 8, col 5 (col 6 is timing, skip it)
+  if qr.img_get(img, sz, 8, 5) == 0
+    fi |= (1 << 9)
+
+  ' Bits 10-14: row 8, cols 4, 3, 2, 1, 0
+  if qr.img_get(img, sz, 8, 4) == 0
+    fi |= (1 << 10)
+  if qr.img_get(img, sz, 8, 3) == 0
+    fi |= (1 << 11)
+  if qr.img_get(img, sz, 8, 2) == 0
+    fi |= (1 << 12)
+  if qr.img_get(img, sz, 8, 1) == 0
+    fi |= (1 << 13)
+  if qr.img_get(img, sz, 8, 0) == 0
+    fi |= (1 << 14)
+
+' ───────────────────────────────────────────────────────────────────────────
+' SECTION 2: Version capacity tests
+'
+' Three messages are chosen so that different EC levels produce different
+' QR versions, exercising the capacity table for each level:
+'
+'  5 chars  ("Hello"): V1 for all levels  (V1-H cap=7 ≥ 5)
+'  8 chars  ("Hello 2!"): V1 for L/M/Q (cap 17/14/11 ≥ 8), V2 for H (cap 7 < 8)
+' 15 chars  ("Hello, Propeller"): V1 for L, V2 for M/Q, V3 for H
+' ───────────────────────────────────────────────────────────────────────────
+
+PRI run_version_tests()
+
+  ' ── Test 1: 5-char message → V1 (idx=0) for every EC level ──────────────
+  check_version(String("Hello"), 0, String("5-char → V1 for all levels"))
+
+  ' ── Test 2: 8-char message → V1 L/M/Q, V2 H ─────────────────────────────
+  ' V1-L cap=17, V1-M cap=14, V1-Q cap=11 → all ≥ 8 → idx 0
+  ' V1-H cap=7 < 8,  V2-H cap=14 ≥ 8    →          → idx 1
+  if qr.EC_LEVEL == qr.EC_H
+    check_version(String("Hello 2!"), 1, String("8-char → V2 for H"))
+  else
+    check_version(String("Hello 2!"), 0, String("8-char → V1 for L/M/Q"))
+
+  ' ── Test 3: 12-char message → V1 L/M, V2 Q/H ────────────────────────────
+  ' V1-L cap=17, V1-M cap=14 → both ≥ 12 → idx 0
+  ' V1-Q cap=11 < 12, V2-Q cap=20 ≥ 12   →         → idx 1
+  ' V1-H cap=7  < 12, V2-H cap=14 ≥ 12   →         → idx 1
+  if (qr.EC_LEVEL == qr.EC_L) or (qr.EC_LEVEL == qr.EC_M)
+    check_version(String("Hello World!"), 0, String("12-char → V1 for L/M"))
+  else
+    check_version(String("Hello World!"), 1, String("12-char → V2 for Q/H"))
+
+  ' ── Test 4: 15-char message → V1 L, V2 M/Q, V3 H ────────────────────────
+  ' V1-L cap=17 ≥ 15                       → idx 0
+  ' V1-M cap=14 < 15, V2-M cap=28 ≥ 15    → idx 1
+  ' V1-Q cap=11 < 15, V2-Q cap=20 ≥ 15    → idx 1
+  ' V1-H cap=7  < 15, V2-H cap=14 < 15,
+  '   V3-H cap=24 ≥ 15                     → idx 2
+  if qr.EC_LEVEL == qr.EC_L
+    check_version(String("Hello, Propeller"), 0, String("15-char → V1 for L"))
+  elseif (qr.EC_LEVEL == qr.EC_M) or (qr.EC_LEVEL == qr.EC_Q)
+    check_version(String("Hello, Propeller"), 1, String("15-char → V2 for M/Q"))
+  else ' EC_H
+    check_version(String("Hello, Propeller"), 2, String("15-char → V3 for H"))
+
+  ' ── Test 5: 22-char message → V2 L/M, V3 Q/H ────────────────────────────
+  ' V1-L=17<22, V2-L=34≥22                 → idx 1
+  ' V1-M=14<22, V2-M=28≥22                 → idx 1
+  ' V1-Q=11<22, V2-Q=20<22, V3-Q=32≥22    → idx 2
+  ' V1-H=7 <22, V2-H=14<22, V3-H=24≥22    → idx 2
+  if (qr.EC_LEVEL == qr.EC_L) or (qr.EC_LEVEL == qr.EC_M)
+    check_version(String("Hello, Propeller Two!!"), 1, String("22-char → V2 for L/M"))
+  else
+    check_version(String("Hello, Propeller Two!!"), 2, String("22-char → V3 for Q/H"))
+
+PRI check_version(msg, expected_idx, label)
+  qr.parseMessage(msg, qr.TYPE_RAW, 0)
+  if qr.getqrversion() == expected_idx
+    pass_count++
+    DEBUG("PASS v", udec_(expected_idx + 1), " (expected) — ", zstr_(label))
+  else
+    fail_count++
+    DEBUG("FAIL expected V", udec_(expected_idx + 1),{
+}         " got V", udec_(qr.getqrversion() + 1),{
+}         " — ", zstr_(label))
+
+' ───────────────────────────────────────────────────────────────────────────
+' SECTION 3: Mask coverage
+' ───────────────────────────────────────────────────────────────────────────
+
+PRI report_mask_coverage() | i
+
+  DEBUG("Masks seen across ", udec_(total_tests), " format-info tests:")
+  repeat i from 0 to 7
+    if (mask_seen >> i) & 1
+      DEBUG("  Mask ", udec_(i), " : SEEN")
+    else
+      DEBUG("  Mask ", udec_(i), " : *** MISSING ***")
+      fail_count++
+  DEBUG("----------------------------------------------------------")
+  if mask_seen == $FF
+    pass_count++
+    DEBUG("SECTION 3 RESULT: PASS -- all 8 masks selected at least once.")
+  else
+    DEBUG("SECTION 3 RESULT: FAIL -- add more test messages for missing masks.")
+
+' ───────────────────────────────────────────────────────────────────────────
+' Helpers
+' ───────────────────────────────────────────────────────────────────────────
+
+PRI print_ec_level_banner()
+  DEBUG("==========================================================")
+  DEBUG("p2qr EC Level Integration Test")
+  if qr.EC_LEVEL == qr.EC_L
+    DEBUG("Compiled EC_LEVEL = EC_L (~7%% recovery)")
+  elseif qr.EC_LEVEL == qr.EC_M
+    DEBUG("Compiled EC_LEVEL = EC_M (~15%% recovery)")
+  elseif qr.EC_LEVEL == qr.EC_Q
+    DEBUG("Compiled EC_LEVEL = EC_Q (~25%% recovery, default)")
+  else
+    DEBUG("Compiled EC_LEVEL = EC_H (~30%% recovery)")
+  DEBUG("==========================================================")
